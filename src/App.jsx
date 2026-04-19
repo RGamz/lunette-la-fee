@@ -42,6 +42,7 @@ export default function FeeFrancaise() {
   const audioRef = useRef(null);
   const messagesEndRef = useRef(null);
   const conversationRef = useRef([]);
+  const transcriptRef = useRef("");
 
   useEffect(() => {
     const p = Array.from({ length: 18 }, (_, i) => ({
@@ -67,16 +68,13 @@ export default function FeeFrancaise() {
     }
     const recognition = new SpeechRecognition();
     recognition.lang = "fr-FR";
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
 
     recognition.onresult = (e) => {
-      const interim = Array.from(e.results).map(r => r[0].transcript).join("");
-      setTranscript(interim);
-      if (e.results[e.results.length - 1].isFinal) {
-        const final = e.results[e.results.length - 1][0].transcript;
-        handleUserMessage(final);
-      }
+      const text = Array.from(e.results).map(r => r[0].transcript).join("");
+      setTranscript(text);
+      transcriptRef.current = text;
     };
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
@@ -202,8 +200,12 @@ export default function FeeFrancaise() {
     }
     if (isListening) {
       recognitionRef.current?.stop();
+      const captured = transcriptRef.current.trim();
+      transcriptRef.current = "";
+      if (captured) handleUserMessage(captured);
     } else {
       setTranscript("");
+      transcriptRef.current = "";
       setFairyMood("listening");
       if (recognitionRef.current) recognitionRef.current.lang = inputLang;
       try { recognitionRef.current?.start(); setIsListening(true); } catch { /* recognition unavailable */ }
