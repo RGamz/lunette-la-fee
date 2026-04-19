@@ -4,6 +4,7 @@ import { SYSTEM_PROMPT } from "./prompt.js";
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const ELEVENLABS_MODEL = "eleven_multilingual_v2";
 const ELEVENLABS_SPEED = 0.8;
+const MAX_RECORD_SECONDS = 15; // ✅ auto-stop timeout
 
 async function callClaude(messages) {
   const response = await fetch("/api/chat", {
@@ -27,6 +28,95 @@ const FAIRY_EXPRESSIONS = {
   happy: "✨",
 };
 
+// ✅ SVG icons — child-friendly, no cryptic labels
+const IconMic = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="32" height="32">
+    <rect x="9" y="2" width="6" height="12" rx="3"/>
+    <path d="M5 10a7 7 0 0 0 14 0"/>
+    <line x1="12" y1="19" x2="12" y2="22"/>
+    <line x1="8" y1="22" x2="16" y2="22"/>
+  </svg>
+);
+
+const IconStop = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+    <rect x="5" y="5" width="14" height="14" rx="2"/>
+  </svg>
+);
+
+const IconCancel = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="26" height="26">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+const IconReplay = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="26" height="26">
+    <polyline points="1 4 1 10 7 10"/>
+    <path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+  </svg>
+);
+
+// ✅ Waveform component — reads live analyser data
+function Waveform({ analyserRef, isActive }) {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+
+  useEffect(() => {
+    if (!isActive || !analyserRef.current) {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      return;
+    }
+    const analyser = analyserRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const BAR_COUNT = 18;
+    const BAR_GAP = 3;
+
+    function draw() {
+      animRef.current = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const barW = (canvas.width - BAR_GAP * (BAR_COUNT - 1)) / BAR_COUNT;
+      for (let i = 0; i < BAR_COUNT; i++) {
+        // sample evenly across frequency bins, bias toward lower freqs (voice)
+        const idx = Math.floor((i / BAR_COUNT) * (bufferLength * 0.4));
+        const v = dataArray[idx] / 255;
+        const barH = Math.max(4, v * canvas.height * 0.9);
+        const x = i * (barW + BAR_GAP);
+        const y = (canvas.height - barH) / 2;
+        const alpha = 0.5 + v * 0.5;
+        ctx.fillStyle = `rgba(52, 211, 153, ${alpha})`;
+        ctx.beginPath();
+        ctx.roundRect(x, y, barW, barH, 3);
+        ctx.fill();
+      }
+    }
+    draw();
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [isActive, analyserRef]);
+
+  if (!isActive) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={160}
+      height={44}
+      style={{
+        borderRadius: 12,
+        background: "rgba(52,211,153,0.08)",
+        border: "1px solid rgba(52,211,153,0.2)",
+        display: "block",
+      }}
+    />
+  );
+}
+
 export default function FeeFrancaise() {
   const [messages, setMessages] = useState([]);
   const [isListening, setIsListening] = useState(false);
@@ -38,6 +128,7 @@ export default function FeeFrancaise() {
   const [speechSupported, setSpeechSupported] = useState(true);
   const [particles, setParticles] = useState([]);
   const [inputLang, setInputLang] = useState("fr-FR");
+  const [recordSeconds, setRecordSeconds] = useState(0); // ✅ countdown display
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -46,6 +137,10 @@ export default function FeeFrancaise() {
   const messagesEndRef = useRef(null);
   const conversationRef = useRef([]);
   const lastAudioBlobsRef = useRef([]);
+  const analyserRef = useRef(null);          // ✅ Web Audio analyser
+  const audioCtxRef = useRef(null);          // ✅ AudioContext
+  const timeoutRef = useRef(null);           // ✅ auto-stop timeout
+  const countdownRef = useRef(null);         // ✅ countdown interval
 
   useEffect(() => {
     const p = Array.from({ length: 18 }, (_, i) => ({
@@ -65,6 +160,15 @@ export default function FeeFrancaise() {
 
   useEffect(() => {
     if (!navigator.mediaDevices?.getUserMedia) setSpeechSupported(false);
+  }, []);
+
+  // ✅ Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(timeoutRef.current);
+      clearInterval(countdownRef.current);
+      audioCtxRef.current?.close();
+    };
   }, []);
 
   const playBlob = useCallback((blob) => {
@@ -155,10 +259,8 @@ export default function FeeFrancaise() {
 
     try {
       const reply = await callClaude(newHistory);
-
       const assistantMsg = { role: "assistant", content: reply };
       conversationRef.current = [...newHistory, assistantMsg];
-
       const hasCorrection = reply.includes("по-русски") || reply.includes("On dit");
       setFairyMood(hasCorrection ? "correcting" : "happy");
       setMessages(prev => [...prev, { from: "fairy", text: reply, hasCorrection }]);
@@ -205,6 +307,26 @@ export default function FeeFrancaise() {
     return data.text?.trim() || "";
   }, [inputLang]);
 
+  // ✅ Shared stop logic — used by button, auto-timeout, and cancel
+  const stopRecording = useCallback((cancel = false) => {
+    clearTimeout(timeoutRef.current);
+    clearInterval(countdownRef.current);
+    setRecordSeconds(0);
+
+    // Disconnect Web Audio analyser
+    analyserRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    if (cancel) cancelRecordingRef.current = true;
+    recorder.stop();
+    recorder.stream.getTracks().forEach(t => t.stop());
+    setIsListening(false);
+    if (cancel) setFairyMood("idle");
+  }, []);
+
   const toggleListening = useCallback(async () => {
     if (isSpeaking) {
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
@@ -212,20 +334,39 @@ export default function FeeFrancaise() {
     }
 
     if (isListening) {
-      const recorder = mediaRecorderRef.current;
-      if (!recorder) return;
-      recorder.stop();
-      recorder.stream.getTracks().forEach(t => t.stop());
-      setIsListening(false);
+      stopRecording(false);
     } else {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // ✅ Setup Web Audio analyser for waveform
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        audioCtxRef.current = audioCtx;
+        analyserRef.current = analyser;
+
         const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
         const recorder = new MediaRecorder(stream, { mimeType });
         audioChunksRef.current = [];
+        cancelRecordingRef.current = false;
+
         recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
         recorder.onstop = async () => {
-          if (cancelRecordingRef.current) { cancelRecordingRef.current = false; return; }
+          // Cleanup audio context
+          analyserRef.current = null;
+          if (audioCtxRef.current) {
+            audioCtxRef.current.close().catch(() => {});
+            audioCtxRef.current = null;
+          }
+
+          if (cancelRecordingRef.current) {
+            cancelRecordingRef.current = false;
+            setTranscript("");
+            return;
+          }
           const blob = new Blob(audioChunksRef.current, { type: mimeType });
           setTranscript("...");
           try {
@@ -237,16 +378,31 @@ export default function FeeFrancaise() {
             setMessages(prev => [...prev, { from: "fairy", text: `Erreur transcription: ${err.message}`, hasCorrection: false }]);
           }
         };
+
         mediaRecorderRef.current = recorder;
         recorder.start();
         setIsListening(true);
         setFairyMood("listening");
         setTranscript("");
+        setRecordSeconds(MAX_RECORD_SECONDS);
+
+        // ✅ Countdown display
+        countdownRef.current = setInterval(() => {
+          setRecordSeconds(s => Math.max(0, s - 1));
+        }, 1000);
+
+        // ✅ Auto-stop after MAX_RECORD_SECONDS
+        timeoutRef.current = setTimeout(() => {
+          clearInterval(countdownRef.current);
+          setRecordSeconds(0);
+          stopRecording(false);
+        }, MAX_RECORD_SECONDS * 1000);
+
       } catch {
         setSpeechSupported(false);
       }
     }
-  }, [isListening, isSpeaking, transcribeAudio, handleUserMessage]);
+  }, [isListening, isSpeaking, stopRecording, transcribeAudio, handleUserMessage]);
 
   const formatMessage = (text) => {
     const parts = text.split(/(\(по-русски:.*?\))/gs);
@@ -295,6 +451,7 @@ export default function FeeFrancaise() {
         @keyframes float { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-12px) rotate(2deg); } }
         @keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.5); opacity: 0; } }
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes countdown-shrink { from { width: 100%; } to { width: 0%; } }
         .fairy-float { animation: float 3s ease-in-out infinite; }
         .msg-in { animation: slideIn 0.3s ease forwards; }
         .chat-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -305,12 +462,17 @@ export default function FeeFrancaise() {
           font-size: clamp(24px, 6vw, 36px);
         }
         .mic-btn {
-          width: clamp(64px, 18vw, 80px);
-          height: clamp(64px, 18vw, 80px);
+          width: clamp(72px, 20vw, 88px);
+          height: clamp(72px, 20vw, 88px);
+        }
+        .secondary-btn {
+          width: clamp(52px, 14vw, 64px);
+          height: clamp(52px, 14vw, 64px);
         }
         .controls-bar {
           padding-bottom: max(16px, env(safe-area-inset-bottom));
         }
+        .icon-btn:active { transform: scale(0.92); }
       `}</style>
 
       {/* Title */}
@@ -428,8 +590,35 @@ export default function FeeFrancaise() {
         </div>
       )}
 
+      {/* ✅ Waveform + countdown bar — visible only while recording */}
+      {isListening && (
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center",
+          gap: 6, marginBottom: 10, zIndex: 1, flexShrink: 0,
+          width: "100%", maxWidth: 600,
+        }}>
+          <Waveform analyserRef={analyserRef} isActive={isListening} />
+          {/* ✅ Countdown progress bar */}
+          <div style={{
+            width: "100%", height: 4, borderRadius: 2,
+            background: "rgba(52,211,153,0.15)",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              height: "100%",
+              background: "linear-gradient(90deg, #34d399, #059669)",
+              borderRadius: 2,
+              animation: `countdown-shrink ${MAX_RECORD_SECONDS}s linear forwards`,
+            }} />
+          </div>
+          <span style={{ color: "rgba(52,211,153,0.7)", fontSize: "0.75rem" }}>
+            {recordSeconds}s
+          </span>
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="controls-bar" style={{ display: "flex", gap: 16, alignItems: "center", zIndex: 1, flexShrink: 0 }}>
+      <div className="controls-bar" style={{ display: "flex", gap: 14, alignItems: "center", zIndex: 1, flexShrink: 0 }}>
         {!hasStarted ? (
           <button onClick={startConversation} style={{
             background: "linear-gradient(135deg, #f9d71c, #f59e0b)",
@@ -448,79 +637,110 @@ export default function FeeFrancaise() {
         ) : (
           <>
             {speechSupported ? (
-              <button onClick={toggleListening} disabled={isThinking} className="mic-btn" style={{
-                borderRadius: "50%",
-                background: isListening
-                  ? "linear-gradient(135deg, #34d399, #059669)"
-                  : isSpeaking
-                    ? "linear-gradient(135deg, #38bdf8, #0284c7)"
-                    : "linear-gradient(135deg, #a78bfa, #6d28d9)",
-                border: "none",
-                fontSize: "clamp(11px, 3vw, 14px)", fontWeight: 700, color: "#fff",
-                cursor: isThinking ? "not-allowed" : "pointer",
-                boxShadow: isListening
-                  ? "0 0 25px rgba(52,211,153,0.6)"
-                  : "0 4px 20px rgba(167,139,250,0.5)",
-                transition: "all 0.2s",
-                opacity: isThinking ? 0.5 : 1,
-              }}>
-                {isListening ? "STOP" : isSpeaking ? "..." : "MIC"}
-              </button>
+              <>
+                {/* ✅ Main mic button — bigger, SVG icon */}
+                <button
+                  onClick={toggleListening}
+                  disabled={isThinking}
+                  className="mic-btn icon-btn"
+                  title={isListening ? "Envoyer" : isSpeaking ? "En train de parler…" : "Parler"}
+                  style={{
+                    borderRadius: "50%",
+                    background: isListening
+                      ? "linear-gradient(135deg, #34d399, #059669)"
+                      : isSpeaking
+                        ? "linear-gradient(135deg, #38bdf8, #0284c7)"
+                        : "linear-gradient(135deg, #a78bfa, #6d28d9)",
+                    border: "none",
+                    color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: isThinking ? "not-allowed" : "pointer",
+                    boxShadow: isListening
+                      ? "0 0 28px rgba(52,211,153,0.6)"
+                      : "0 4px 20px rgba(167,139,250,0.5)",
+                    transition: "all 0.2s",
+                    opacity: isThinking ? 0.5 : 1,
+                  }}
+                >
+                  {isListening ? <IconStop /> : <IconMic />}
+                </button>
+
+                {/* ✅ Cancel button — only while recording */}
+                {isListening && (
+                  <button
+                    onClick={() => stopRecording(true)}
+                    className="secondary-btn icon-btn"
+                    title="Annuler"
+                    style={{
+                      borderRadius: "50%",
+                      background: "rgba(251,113,133,0.15)",
+                      border: "2px solid rgba(251,113,133,0.5)",
+                      color: "#fb7185",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <IconCancel />
+                  </button>
+                )}
+
+                {/* ✅ Replay button — only when not recording */}
+                {!isListening && lastAudioBlobsRef.current.length > 0 && (
+                  <button
+                    onClick={replayLast}
+                    disabled={isListening || isThinking || isSpeaking}
+                    className="secondary-btn icon-btn"
+                    title="Réécouter"
+                    style={{
+                      borderRadius: "50%",
+                      background: "rgba(249,215,28,0.15)",
+                      border: "2px solid rgba(249,215,28,0.4)",
+                      color: "#f9d71c",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: (isListening || isThinking || isSpeaking) ? "not-allowed" : "pointer",
+                      opacity: (isListening || isThinking || isSpeaking) ? 0.4 : 1,
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <IconReplay />
+                  </button>
+                )}
+              </>
             ) : (
               <div style={{ color: "#fb7185", fontSize: "0.8rem", textAlign: "center", maxWidth: 200 }}>
                 Micro non disponible.<br />Essaie sur Chrome ou Safari.
               </div>
             )}
-            {isListening && (
-              <button onClick={() => {
-                cancelRecordingRef.current = true;
-                const recorder = mediaRecorderRef.current;
-                if (recorder) { recorder.stop(); recorder.stream.getTracks().forEach(t => t.stop()); }
-                setIsListening(false);
-                setTranscript("");
-                setFairyMood("idle");
-              }} style={{
-                width: "clamp(48px, 13vw, 60px)",
-                height: "clamp(48px, 13vw, 60px)",
-                borderRadius: "50%",
-                background: "rgba(251,113,133,0.15)",
-                border: "2px solid rgba(251,113,133,0.5)",
-                fontSize: "clamp(10px, 2.5vw, 13px)", fontWeight: 700, color: "#fb7185",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}>
-                ANN
-              </button>
-            )}
-            {!isListening && lastAudioBlobsRef.current.length > 0 && (
-              <button onClick={replayLast} disabled={isListening || isThinking || isSpeaking} style={{
-                width: "clamp(48px, 13vw, 60px)",
-                height: "clamp(48px, 13vw, 60px)",
-                borderRadius: "50%",
-                background: "rgba(249,215,28,0.15)",
-                border: "2px solid rgba(249,215,28,0.4)",
-                fontSize: "clamp(10px, 2.5vw, 13px)", fontWeight: 700, color: "#f9d71c",
-                cursor: (isListening || isThinking || isSpeaking) ? "not-allowed" : "pointer",
-                opacity: (isListening || isThinking || isSpeaking) ? 0.4 : 1,
-                transition: "all 0.2s",
-              }}>
-                REP
-              </button>
-            )}
+
+            {/* ✅ FR/RU toggle */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <button onClick={() => setInputLang(l => l === "fr-FR" ? "ru-RU" : "fr-FR")} disabled={isListening} style={{
-                background: inputLang === "fr-FR" ? "rgba(56,189,248,0.2)" : "rgba(251,113,133,0.2)",
-                border: `1px solid ${inputLang === "fr-FR" ? "#38bdf8" : "#fb7185"}`,
-                borderRadius: 20, padding: "6px 16px",
-                color: inputLang === "fr-FR" ? "#38bdf8" : "#fb7185",
-                fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", fontWeight: 700,
-                cursor: isListening ? "not-allowed" : "pointer",
-                minHeight: 36,
-              }}>
-                {inputLang === "fr-FR" ? "FR" : "RU"}
+              <button
+                onClick={() => setInputLang(l => l === "fr-FR" ? "ru-RU" : "fr-FR")}
+                disabled={isListening}
+                style={{
+                  background: inputLang === "fr-FR" ? "rgba(56,189,248,0.2)" : "rgba(251,113,133,0.2)",
+                  border: `1px solid ${inputLang === "fr-FR" ? "#38bdf8" : "#fb7185"}`,
+                  borderRadius: 20, padding: "6px 16px",
+                  color: inputLang === "fr-FR" ? "#38bdf8" : "#fb7185",
+                  fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", fontWeight: 700,
+                  cursor: isListening ? "not-allowed" : "pointer",
+                  minHeight: 36,
+                  transition: "all 0.2s",
+                }}
+              >
+                {inputLang === "fr-FR" ? "🇫🇷 FR" : "🇷🇺 RU"}
               </button>
               <div style={{ color: "rgba(167,139,250,0.7)", fontSize: "clamp(0.65rem, 2vw, 0.75rem)", textAlign: "center" }}>
-                {isListening ? "J'écoute..." : transcript === "..." ? "Transcription..." : isSpeaking ? "Lunette parle..." : isThinking ? "Je réfléchis..." : "Appuie pour parler"}
+                {isListening
+                  ? `J'écoute… (${recordSeconds}s)`
+                  : transcript === "..."
+                    ? "Transcription..."
+                    : isSpeaking
+                      ? "Lunette parle…"
+                      : isThinking
+                        ? "Je réfléchis…"
+                        : "Appuie pour parler"}
               </div>
             </div>
           </>
