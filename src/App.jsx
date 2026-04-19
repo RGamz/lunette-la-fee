@@ -251,13 +251,14 @@ export default function FeeFrancaise() {
 
   return (
     <div style={{
-      minHeight: "100vh",
+      height: "100dvh",
       background: "linear-gradient(135deg, #0f0c29 0%, #1a1040 40%, #0d1b4b 100%)",
       fontFamily: "'Nunito', 'Comic Sans MS', cursive",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
-      padding: "20px 16px",
+      padding: "clamp(12px, 3vw, 20px) clamp(12px, 4vw, 20px)",
+      paddingTop: "max(clamp(12px, 3vw, 20px), env(safe-area-inset-top))",
       position: "relative",
       overflow: "hidden",
     }}>
@@ -278,43 +279,59 @@ export default function FeeFrancaise() {
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Baloo+2:wght@700;800&display=swap');
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; overscroll-behavior: none; }
         @keyframes twinkle { from { opacity: 0.2; transform: scale(0.8); } to { opacity: 0.9; transform: scale(1.3); } }
         @keyframes float { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-12px) rotate(2deg); } }
         @keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.5); opacity: 0; } }
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .fairy-float { animation: float 3s ease-in-out infinite; }
         .msg-in { animation: slideIn 0.3s ease forwards; }
+        .chat-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .avatar {
+          width: clamp(72px, 16vw, 100px);
+          height: clamp(72px, 16vw, 100px);
+          font-size: clamp(24px, 6vw, 36px);
+        }
+        .mic-btn {
+          width: clamp(64px, 18vw, 80px);
+          height: clamp(64px, 18vw, 80px);
+        }
+        .controls-bar {
+          padding-bottom: max(16px, env(safe-area-inset-bottom));
+        }
       `}</style>
 
       {/* Title */}
-      <div style={{ textAlign: "center", marginBottom: 16, zIndex: 1 }}>
+      <div style={{ textAlign: "center", marginBottom: "clamp(8px, 2vw, 16px)", zIndex: 1, flexShrink: 0 }}>
         <h1 style={{
           fontFamily: "'Baloo 2', cursive",
-          fontSize: "clamp(1.6rem, 5vw, 2.4rem)",
+          fontSize: "clamp(1.4rem, 5vw, 2.4rem)",
           color: "#f9d71c",
           textShadow: "0 0 20px rgba(249,215,28,0.5), 0 2px 4px rgba(0,0,0,0.5)",
           margin: 0,
           letterSpacing: 1,
         }}>Lunette la Fée</h1>
-        <p style={{ color: "#a78bfa", fontSize: "0.85rem", margin: "4px 0 0", opacity: 0.9 }}>
+        <p style={{ color: "#a78bfa", fontSize: "clamp(0.7rem, 2.5vw, 0.85rem)", margin: "4px 0 0", opacity: 0.9 }}>
           Apprends le français avec magie · Учим французский с волшебством
         </p>
       </div>
 
       {/* Fairy avatar */}
-      <div style={{ position: "relative", marginBottom: 16, zIndex: 1 }}>
+      <div style={{ position: "relative", marginBottom: "clamp(8px, 2vw, 16px)", zIndex: 1, flexShrink: 0 }}>
         {(isListening || isSpeaking) && (
           <div style={{
-            position: "absolute", inset: -16, borderRadius: "50%",
+            position: "absolute", inset: -12, borderRadius: "50%",
             border: `3px solid ${isListening ? "#34d399" : "#38bdf8"}`,
             animation: "pulse-ring 1s ease-out infinite",
           }} />
         )}
-        <div className="fairy-float" style={{
-          width: 100, height: 100, borderRadius: "50%",
+        <div className="fairy-float avatar" style={{
+          borderRadius: "50%",
           background: "radial-gradient(circle at 35% 35%, #a78bfa, #6d28d9)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 36, fontWeight: 900, color: "#f9d71c",
+          fontWeight: 900, color: "#f9d71c",
           boxShadow: "0 0 30px rgba(167,139,250,0.6), 0 4px 20px rgba(0,0,0,0.4)",
           border: "3px solid rgba(249,215,28,0.4)",
           letterSpacing: 2,
@@ -324,27 +341,24 @@ export default function FeeFrancaise() {
       </div>
 
       {/* Chat area */}
-      <div style={{
-        width: "100%", maxWidth: 520,
+      <div className="chat-scroll" style={{
+        width: "100%", maxWidth: 600,
         flex: 1,
         background: "rgba(255,255,255,0.04)",
         backdropFilter: "blur(10px)",
-        borderRadius: 24,
+        borderRadius: 20,
         border: "1px solid rgba(167,139,250,0.2)",
-        padding: 16,
-        minHeight: 220,
-        maxHeight: 340,
-        overflowY: "auto",
+        padding: "12px 14px",
         zIndex: 1,
-        marginBottom: 16,
+        marginBottom: 12,
         display: "flex",
         flexDirection: "column",
         gap: 10,
       }}>
         {!hasStarted && (
-          <div style={{ textAlign: "center", margin: "auto", color: "rgba(167,139,250,0.7)", fontSize: "0.9rem" }}>
+          <div style={{ textAlign: "center", margin: "auto", color: "rgba(167,139,250,0.7)", fontSize: "clamp(0.8rem, 3vw, 0.9rem)", padding: "16px 0" }}>
             Appuie sur le bouton pour rencontrer Lunette !<br />
-            <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>Нажми кнопку, чтобы познакомиться с Люнетт!</span>
+            <span style={{ fontSize: "clamp(0.7rem, 2.5vw, 0.8rem)", opacity: 0.7 }}>Нажми кнопку, чтобы познакомиться с Люнетт!</span>
           </div>
         )}
         {isThinking && (
@@ -368,7 +382,7 @@ export default function FeeFrancaise() {
             justifyContent: msg.from === "user" ? "flex-end" : "flex-start",
           }}>
             <div style={{
-              maxWidth: "82%",
+              maxWidth: "85%",
               background: msg.from === "user"
                 ? "linear-gradient(135deg, #38bdf8, #0284c7)"
                 : msg.hasCorrection
@@ -377,8 +391,8 @@ export default function FeeFrancaise() {
               borderRadius: msg.from === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
               padding: "10px 14px",
               color: "#f1f5f9",
-              fontSize: "0.9rem",
-              lineHeight: 1.5,
+              fontSize: "clamp(0.85rem, 3vw, 0.95rem)",
+              lineHeight: 1.55,
               border: msg.hasCorrection ? "1px solid rgba(167,139,250,0.3)" : "none",
               boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
             }}>
@@ -392,39 +406,39 @@ export default function FeeFrancaise() {
       {/* Transcript */}
       {transcript && (
         <div style={{
-          width: "100%", maxWidth: 520,
+          width: "100%", maxWidth: 600,
           background: "rgba(56,189,248,0.1)",
           border: "1px dashed rgba(56,189,248,0.3)",
           borderRadius: 12, padding: "8px 14px",
-          color: "#7dd3fc", fontSize: "0.85rem",
-          marginBottom: 12, zIndex: 1,
-          textAlign: "center",
+          color: "#7dd3fc", fontSize: "clamp(0.78rem, 2.5vw, 0.85rem)",
+          marginBottom: 10, zIndex: 1,
+          textAlign: "center", flexShrink: 0,
         }}>
           {transcript}
         </div>
       )}
 
       {/* Controls */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center", zIndex: 1 }}>
+      <div className="controls-bar" style={{ display: "flex", gap: 16, alignItems: "center", zIndex: 1, flexShrink: 0 }}>
         {!hasStarted ? (
           <button onClick={startConversation} style={{
             background: "linear-gradient(135deg, #f9d71c, #f59e0b)",
-            border: "none", borderRadius: 50, padding: "14px 32px",
-            fontSize: "1rem", fontWeight: 900, color: "#1a1040",
+            border: "none", borderRadius: 50, padding: "clamp(12px, 3vw, 16px) clamp(24px, 6vw, 36px)",
+            fontSize: "clamp(0.95rem, 3vw, 1.05rem)", fontWeight: 900, color: "#1a1040",
             cursor: "pointer", boxShadow: "0 4px 20px rgba(249,215,28,0.4)",
             fontFamily: "'Baloo 2', cursive",
             transition: "transform 0.15s",
           }}
             onMouseDown={e => e.currentTarget.style.transform = "scale(0.95)"}
             onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+            onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}
           >
             Rencontrer Lunette !
           </button>
         ) : (
           <>
             {speechSupported ? (
-              <button onClick={toggleListening} disabled={isThinking} style={{
-                width: 72, height: 72,
+              <button onClick={toggleListening} disabled={isThinking} className="mic-btn" style={{
                 borderRadius: "50%",
                 background: isListening
                   ? "linear-gradient(135deg, #34d399, #059669)"
@@ -432,7 +446,7 @@ export default function FeeFrancaise() {
                     ? "linear-gradient(135deg, #38bdf8, #0284c7)"
                     : "linear-gradient(135deg, #a78bfa, #6d28d9)",
                 border: "none",
-                fontSize: 14, fontWeight: 700, color: "#fff",
+                fontSize: "clamp(11px, 3vw, 14px)", fontWeight: 700, color: "#fff",
                 cursor: isThinking ? "not-allowed" : "pointer",
                 boxShadow: isListening
                   ? "0 0 25px rgba(52,211,153,0.6)"
@@ -451,13 +465,15 @@ export default function FeeFrancaise() {
               <button onClick={() => setInputLang(l => l === "fr-FR" ? "ru-RU" : "fr-FR")} disabled={isListening} style={{
                 background: inputLang === "fr-FR" ? "rgba(56,189,248,0.2)" : "rgba(251,113,133,0.2)",
                 border: `1px solid ${inputLang === "fr-FR" ? "#38bdf8" : "#fb7185"}`,
-                borderRadius: 20, padding: "4px 12px",
+                borderRadius: 20, padding: "6px 16px",
                 color: inputLang === "fr-FR" ? "#38bdf8" : "#fb7185",
-                fontSize: "0.8rem", fontWeight: 700, cursor: isListening ? "not-allowed" : "pointer",
+                fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", fontWeight: 700,
+                cursor: isListening ? "not-allowed" : "pointer",
+                minHeight: 36,
               }}>
                 {inputLang === "fr-FR" ? "FR" : "RU"}
               </button>
-              <div style={{ color: "rgba(167,139,250,0.7)", fontSize: "0.75rem", textAlign: "center" }}>
+              <div style={{ color: "rgba(167,139,250,0.7)", fontSize: "clamp(0.65rem, 2vw, 0.75rem)", textAlign: "center" }}>
                 {isListening ? "J'écoute..." : isSpeaking ? "Lunette parle..." : isThinking ? "Je réfléchis..." : "Appuie pour parler"}
               </div>
             </div>
@@ -466,7 +482,7 @@ export default function FeeFrancaise() {
       </div>
 
       {hasStarted && (
-        <p style={{ color: "rgba(167,139,250,0.4)", fontSize: "0.7rem", marginTop: 16, textAlign: "center", zIndex: 1 }}>
+        <p style={{ color: "rgba(167,139,250,0.4)", fontSize: "clamp(0.6rem, 2vw, 0.7rem)", margin: "10px 0 0", textAlign: "center", zIndex: 1, flexShrink: 0 }}>
           Parle en français · Говори по-французски · Lunette corrigera doucement
         </p>
       )}
