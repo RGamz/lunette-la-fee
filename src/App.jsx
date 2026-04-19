@@ -32,6 +32,17 @@ Première réponse : présente-toi en français, puis ajoute un seul bloc russe 
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const ELEVENLABS_MODEL = "eleven_multilingual_v2";
 
+async function callClaude(messages) {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 1000, system: SYSTEM_PROMPT, messages }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || `Erreur ${response.status}`);
+  return data.content[0].text;
+}
+
 const FAIRY_EXPRESSIONS = {
   idle: "🪄",
   listening: "...",
@@ -172,22 +183,7 @@ export default function FeeFrancaise() {
     setMessages(prev => [...prev, { from: "user", text }]);
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 1000,
-          system: SYSTEM_PROMPT,
-          messages: newHistory,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        const errMsg = data.error?.message || `Erreur ${response.status}`;
-        throw new Error(errMsg);
-      }
-      const reply = data.content[0].text;
+      const reply = await callClaude(newHistory);
 
       const assistantMsg = { role: "assistant", content: reply };
       conversationRef.current = [...newHistory, assistantMsg];
@@ -209,22 +205,7 @@ export default function FeeFrancaise() {
     setIsThinking(true);
     setFairyMood("thinking");
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 1000,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: "Bonjour !" }],
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        const errMsg = data.error?.message || `Erreur ${response.status}`;
-        throw new Error(errMsg);
-      }
-      const reply = data.content[0].text;
+      const reply = await callClaude([{ role: "user", content: "Bonjour !" }]);
       conversationRef.current = [
         { role: "user", content: "Bonjour !" },
         { role: "assistant", content: reply },
@@ -312,7 +293,7 @@ export default function FeeFrancaise() {
           textShadow: "0 0 20px rgba(249,215,28,0.5), 0 2px 4px rgba(0,0,0,0.5)",
           margin: 0,
           letterSpacing: 1,
-        }}>Lunette la Fee</h1>
+        }}>Lunette la Fée</h1>
         <p style={{ color: "#a78bfa", fontSize: "0.85rem", margin: "4px 0 0", opacity: 0.9 }}>
           Apprends le français avec magie · Учим французский с волшебством
         </p>
@@ -475,7 +456,7 @@ export default function FeeFrancaise() {
                 {inputLang === "fr-FR" ? "FR" : "RU"}
               </button>
               <div style={{ color: "rgba(167,139,250,0.7)", fontSize: "0.75rem", textAlign: "center" }}>
-                {isListening ? "J'ecoute..." : isSpeaking ? "Lunette parle..." : isThinking ? "Je reflechis..." : "Appuie pour parler"}
+                {isListening ? "J'écoute..." : isSpeaking ? "Lunette parle..." : isThinking ? "Je réfléchis..." : "Appuie pour parler"}
               </div>
             </div>
           </>

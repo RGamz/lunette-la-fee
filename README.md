@@ -1,16 +1,50 @@
-# React + Vite
+# Lunette la Fée
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A voice-first French learning app for Russian-speaking children aged 7–9. Kids speak French with Lunette, a magical fairy AI tutor, and hear both languages through high-quality bilingual text-to-speech.
 
-Currently, two official plugins are available:
+## How it works
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Child presses the mic button and speaks in French (or Russian using the FR/RU toggle)
+- Lunette replies in simple French and asks a follow-up question
+- If the child says **"qu'est-ce que c'est [word]"**, Lunette explains the word directly in Russian
+- If the child makes a grammar mistake, Lunette gently corrects with a Russian explanation
+- Both French and Russian parts are spoken using ElevenLabs multilingual TTS
 
-## React Compiler
+## Tech stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **React + Vite** — frontend
+- **Claude Haiku** (Anthropic) — conversational AI tutor
+- **ElevenLabs** `eleven_multilingual_v2` — bilingual TTS (French + Russian)
+- **Web Speech API** — voice input (Chrome/Edge/Safari)
+- **Vercel** — hosting + serverless API routes
 
-## Expanding the ESLint configuration
+## Local development
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Requires [Vercel CLI](https://vercel.com/docs/cli) to run the serverless functions locally alongside Vite.
+
+```bash
+npm install
+npm install -g vercel
+vercel dev
+```
+
+Copy `.env.example` to `.env` and fill in your keys:
+
+```bash
+cp .env.example .env
+```
+
+## Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `ELEVENLABS_API_KEY` | ElevenLabs API key |
+| `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID (multilingual voice recommended) |
+
+## Deploy to Vercel
+
+1. Push to GitHub
+2. Import the repo at [vercel.com/new](https://vercel.com/new)
+3. Add the three environment variables in Project Settings
+4. Deploy — done
