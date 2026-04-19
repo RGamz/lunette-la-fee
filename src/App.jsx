@@ -19,11 +19,11 @@ async function callClaude(messages) {
 
 const FAIRY_EXPRESSIONS = {
   idle: "🪄",
-  listening: "...",
-  thinking: "?",
-  speaking: ">",
-  correcting: "!",
-  happy: "*",
+  listening: "👂",
+  thinking: "🤔",
+  speaking: "🗣️",
+  correcting: "✏️",
+  happy: "✨",
 };
 
 export default function FeeFrancaise() {
@@ -38,11 +38,12 @@ export default function FeeFrancaise() {
   const [particles, setParticles] = useState([]);
   const [inputLang, setInputLang] = useState("fr-FR");
 
-  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const cancelRecordingRef = useRef(false);
   const audioRef = useRef(null);
   const messagesEndRef = useRef(null);
   const conversationRef = useRef([]);
-  const transcriptRef = useRef("");
   const lastAudioBlobsRef = useRef([]);
 
   useEffect(() => {
@@ -62,24 +63,7 @@ export default function FeeFrancaise() {
   }, [messages]);
 
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSpeechSupported(false);
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.lang = "fr-FR";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (e) => {
-      const text = Array.from(e.results).map(r => r[0].transcript).join("");
-      setTranscript(text);
-      transcriptRef.current = text;
-    };
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
-    recognitionRef.current = recognition;
+    if (!navigator.mediaDevices?.getUserMedia) setSpeechSupported(false);
   }, []);
 
   const playBlob = useCallback((blob) => {
@@ -206,24 +190,61 @@ export default function FeeFrancaise() {
     }
   };
 
-  const toggleListening = () => {
+  const transcribeAudio = useCallback(async (blob) => {
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    const langCode = inputLang === "fr-FR" ? "fr" : "ru";
+    const form = new FormData();
+    form.append("file", blob, `audio.${ext}`);
+    form.append("model_id", "scribe_v1");
+    form.append("language_code", langCode);
+    const response = await fetch("/api/stt", { method: "POST", body: form });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail?.message || data.detail || `STT ${response.status}`);
+    return data.text?.trim() || "";
+  }, [inputLang]);
+
+  const toggleListening = useCallback(async () => {
     if (isSpeaking) {
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       setIsSpeaking(false);
     }
+
     if (isListening) {
-      recognitionRef.current?.stop();
-      const captured = transcriptRef.current.trim();
-      transcriptRef.current = "";
-      if (captured) handleUserMessage(captured);
+      const recorder = mediaRecorderRef.current;
+      if (!recorder) return;
+      recorder.stop();
+      recorder.stream.getTracks().forEach(t => t.stop());
+      setIsListening(false);
     } else {
-      setTranscript("");
-      transcriptRef.current = "";
-      setFairyMood("listening");
-      if (recognitionRef.current) recognitionRef.current.lang = inputLang;
-      try { recognitionRef.current?.start(); setIsListening(true); } catch { /* recognition unavailable */ }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+        const recorder = new MediaRecorder(stream, { mimeType });
+        audioChunksRef.current = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+        recorder.onstop = async () => {
+          if (cancelRecordingRef.current) { cancelRecordingRef.current = false; return; }
+          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+          setTranscript("...");
+          try {
+            const text = await transcribeAudio(blob);
+            setTranscript("");
+            if (text) handleUserMessage(text);
+          } catch (err) {
+            setTranscript("");
+            setMessages(prev => [...prev, { from: "fairy", text: `Erreur transcription: ${err.message}`, hasCorrection: false }]);
+          }
+        };
+        mediaRecorderRef.current = recorder;
+        recorder.start();
+        setIsListening(true);
+        setFairyMood("listening");
+        setTranscript("");
+      } catch {
+        setSpeechSupported(false);
+      }
     }
-  };
+  }, [isListening, isSpeaking, transcribeAudio, handleUserMessage]);
 
   const formatMessage = (text) => {
     const parts = text.split(/(\(по-русски:.*?\))/gs);
@@ -448,7 +469,28 @@ export default function FeeFrancaise() {
                 Micro non disponible.<br />Essaie sur Chrome ou Safari.
               </div>
             )}
-            {lastAudioBlobsRef.current.length > 0 && (
+            {isListening && (
+              <button onClick={() => {
+                cancelRecordingRef.current = true;
+                const recorder = mediaRecorderRef.current;
+                if (recorder) { recorder.stop(); recorder.stream.getTracks().forEach(t => t.stop()); }
+                setIsListening(false);
+                setTranscript("");
+                setFairyMood("idle");
+              }} style={{
+                width: "clamp(48px, 13vw, 60px)",
+                height: "clamp(48px, 13vw, 60px)",
+                borderRadius: "50%",
+                background: "rgba(251,113,133,0.15)",
+                border: "2px solid rgba(251,113,133,0.5)",
+                fontSize: "clamp(10px, 2.5vw, 13px)", fontWeight: 700, color: "#fb7185",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}>
+                ANN
+              </button>
+            )}
+            {!isListening && lastAudioBlobsRef.current.length > 0 && (
               <button onClick={replayLast} disabled={isListening || isThinking || isSpeaking} style={{
                 width: "clamp(48px, 13vw, 60px)",
                 height: "clamp(48px, 13vw, 60px)",
@@ -476,7 +518,7 @@ export default function FeeFrancaise() {
                 {inputLang === "fr-FR" ? "FR" : "RU"}
               </button>
               <div style={{ color: "rgba(167,139,250,0.7)", fontSize: "clamp(0.65rem, 2vw, 0.75rem)", textAlign: "center" }}>
-                {isListening ? "J'écoute..." : isSpeaking ? "Lunette parle..." : isThinking ? "Je réfléchis..." : "Appuie pour parler"}
+                {isListening ? "J'écoute..." : transcript === "..." ? "Transcription..." : isSpeaking ? "Lunette parle..." : isThinking ? "Je réfléchis..." : "Appuie pour parler"}
               </div>
             </div>
           </>
