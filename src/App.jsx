@@ -3,6 +3,7 @@ import { SYSTEM_PROMPT } from "./prompt.js";
 
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const ELEVENLABS_MODEL = "eleven_multilingual_v2";
+const ELEVENLABS_SPEED = 0.8;
 
 async function callClaude(messages) {
   const response = await fetch("/api/chat", {
@@ -21,7 +22,7 @@ const FAIRY_EXPRESSIONS = {
   idle: "🪄",
   listening: "👂",
   thinking: "🤔",
-  speaking: "🗣️",
+  speaking: "🎤",
   correcting: "✏️",
   happy: "✨",
 };
@@ -84,6 +85,7 @@ export default function FeeFrancaise() {
       body: JSON.stringify({
         text,
         model_id: ELEVENLABS_MODEL,
+        speed: ELEVENLABS_SPEED,
         voice_settings: { stability: 0.5, similarity_boost: 0.75 },
       }),
     });
