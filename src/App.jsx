@@ -38,7 +38,9 @@ async function callClaude(messages) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 1000, system: SYSTEM_PROMPT, messages }),
   });
-  const data = await response.json();
+  const text = await response.text();
+  if (!text) throw new Error(`Erreur serveur ${response.status} (réponse vide)`);
+  const data = JSON.parse(text);
   if (!response.ok) throw new Error(data.error?.message || `Erreur ${response.status}`);
   return data.content[0].text;
 }
