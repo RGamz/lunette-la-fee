@@ -43,6 +43,7 @@ export default function FeeFrancaise() {
   const messagesEndRef = useRef(null);
   const conversationRef = useRef([]);
   const transcriptRef = useRef("");
+  const lastAudioBlobsRef = useRef([]);
 
   useEffect(() => {
     const p = Array.from({ length: 18 }, (_, i) => ({
@@ -81,35 +82,45 @@ export default function FeeFrancaise() {
     recognitionRef.current = recognition;
   }, []);
 
-  const speakSegment = useCallback(async (text) => {
-    try {
-      const response = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          model_id: ELEVENLABS_MODEL,
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-        }),
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail?.message || err.detail || `ElevenLabs ${response.status}`);
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      await new Promise((resolve) => {
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-        audio.play();
-      });
-    } catch (err) {
-      console.error("ElevenLabs TTS error:", err.message);
-      throw err;
-    }
+  const playBlob = useCallback((blob) => {
+    const url = URL.createObjectURL(blob);
+    return new Promise((resolve) => {
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+      audio.play();
+    });
   }, []);
+
+  const fetchSegmentBlob = useCallback(async (text) => {
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        model_id: ELEVENLABS_MODEL,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail?.message || err.detail || `ElevenLabs ${response.status}`);
+    }
+    return response.blob();
+  }, []);
+
+  const replayLast = useCallback(async () => {
+    if (!lastAudioBlobsRef.current.length || isSpeaking) return;
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    setIsSpeaking(true);
+    setFairyMood("speaking");
+    for (const blob of lastAudioBlobsRef.current) {
+      await playBlob(blob);
+    }
+    setIsSpeaking(false);
+    setFairyMood("happy");
+  }, [isSpeaking, playBlob]);
 
   const speak = useCallback(async (text) => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
@@ -131,8 +142,10 @@ export default function FeeFrancaise() {
     if (remaining) segments.push(remaining);
 
     try {
-      for (const seg of segments) {
-        await speakSegment(seg);
+      const blobs = await Promise.all(segments.map(fetchSegmentBlob));
+      lastAudioBlobsRef.current = blobs;
+      for (const blob of blobs) {
+        await playBlob(blob);
       }
     } catch (err) {
       setMessages(prev => [...prev, { from: "fairy", text: `Erreur audio: ${err.message}`, hasCorrection: false }]);
@@ -140,7 +153,7 @@ export default function FeeFrancaise() {
 
     setIsSpeaking(false);
     setFairyMood("happy");
-  }, [speakSegment]);
+  }, [fetchSegmentBlob, playBlob]);
 
   const handleUserMessage = useCallback(async (text) => {
     if (!text.trim()) return;
@@ -434,6 +447,21 @@ export default function FeeFrancaise() {
               <div style={{ color: "#fb7185", fontSize: "0.8rem", textAlign: "center", maxWidth: 200 }}>
                 Micro non disponible.<br />Essaie sur Chrome ou Safari.
               </div>
+            )}
+            {lastAudioBlobsRef.current.length > 0 && (
+              <button onClick={replayLast} disabled={isListening || isThinking || isSpeaking} style={{
+                width: "clamp(48px, 13vw, 60px)",
+                height: "clamp(48px, 13vw, 60px)",
+                borderRadius: "50%",
+                background: "rgba(249,215,28,0.15)",
+                border: "2px solid rgba(249,215,28,0.4)",
+                fontSize: "clamp(10px, 2.5vw, 13px)", fontWeight: 700, color: "#f9d71c",
+                cursor: (isListening || isThinking || isSpeaking) ? "not-allowed" : "pointer",
+                opacity: (isListening || isThinking || isSpeaking) ? 0.4 : 1,
+                transition: "all 0.2s",
+              }}>
+                REP
+              </button>
             )}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
               <button onClick={() => setInputLang(l => l === "fr-FR" ? "ru-RU" : "fr-FR")} disabled={isListening} style={{
