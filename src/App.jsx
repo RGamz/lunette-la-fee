@@ -3,7 +3,7 @@ import { SYSTEM_PROMPT } from "./prompt.js";
 
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const ELEVENLABS_MODEL = "eleven_multilingual_v2";
-const ELEVENLABS_SPEED = 0.8;
+const ELEVENLABS_SPEED = 0.75;
 const MAX_RECORD_SECONDS = 15; // ✅ auto-stop timeout
 
 async function callClaude(messages) {
@@ -190,7 +190,7 @@ export default function FeeFrancaise() {
         text,
         model_id: ELEVENLABS_MODEL,
         speed: ELEVENLABS_SPEED,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        voice_settings: { stability: 0.6, similarity_boost: 0.75 },
       }),
     });
     if (!response.ok) {
