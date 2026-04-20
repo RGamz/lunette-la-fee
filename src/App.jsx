@@ -14,65 +14,57 @@ const THEMES = [
     id: "animals",
     emoji: "🐱",
     fr: "Animaux",
-    ru: "Животные",
     color: "#34d399",
-    prompt: "Le thème choisi est LES ANIMAUX. Oriente naturellement la conversation vers les animaux : animaux domestiques, animaux sauvages, ce que mangent les animaux, leurs sons, leurs couleurs. Reviens à ce thème si la conversation s'éloigne.",
+    prompt: "Le thème choisi est LES ANIMAUX. Oriente naturellement la conversation vers les animaux : animaux domestiques, animaux sauvages, ce que mangent les animaux, leurs sons, leurs couleurs.",
   },
   {
     id: "food",
     emoji: "🍕",
     fr: "Nourriture",
-    ru: "Еда",
     color: "#fb923c",
-    prompt: "Le thème choisi est LA NOURRITURE. Oriente naturellement la conversation vers la nourriture : les repas, les fruits, les légumes, les plats préférés, cuisiner. Reviens à ce thème si la conversation s'éloigne.",
+    prompt: "Le thème choisi est LA NOURRITURE. Oriente naturellement la conversation vers la nourriture : les repas, les fruits, les légumes, les plats préférés, cuisiner.",
   },
   {
     id: "school",
     emoji: "🎒",
     fr: "École",
-    ru: "Школа",
     color: "#60a5fa",
-    prompt: "Le thème choisi est L'ÉCOLE. Oriente naturellement la conversation vers l'école : les matières, les amis, les professeurs, les activités, la récréation. Reviens à ce thème si la conversation s'éloigne.",
+    prompt: "Le thème choisi est L'ÉCOLE. Oriente naturellement la conversation vers l'école : les matières, les amis, les professeurs, les activités, la récréation.",
   },
   {
     id: "magic",
     emoji: "🧙",
     fr: "Magie",
-    ru: "Магия",
     color: "#c084fc",
-    prompt: "Le thème choisi est LA MAGIE. Oriente naturellement la conversation vers la magie : les sorts, les potions, les baguettes magiques, les créatures magiques, les châteaux. Reviens à ce thème si la conversation s'éloigne.",
+    prompt: "Le thème choisi est LA MAGIE. Oriente naturellement la conversation vers la magie : les sorts, les potions, les baguettes magiques, les créatures magiques, les châteaux.",
   },
   {
     id: "colors",
     emoji: "🌈",
     fr: "Couleurs",
-    ru: "Цвета",
     color: "#f472b6",
-    prompt: "Le thème choisi est LES COULEURS. Oriente naturellement la conversation vers les couleurs : les couleurs préférées, les objets de différentes couleurs, mélanger les couleurs, les arcs-en-ciel. Reviens à ce thème si la conversation s'éloigne.",
+    prompt: "Le thème choisi est LES COULEURS. Oriente naturellement la conversation vers les couleurs : les couleurs préférées, les objets de différentes couleurs, mélanger les couleurs, les arcs-en-ciel.",
   },
   {
     id: "family",
     emoji: "👨‍👩‍👧",
     fr: "Famille",
-    ru: "Семья",
     color: "#fbbf24",
-    prompt: "Le thème choisi est LA FAMILLE. Oriente naturellement la conversation vers la famille : les membres de la famille, ce qu'on fait ensemble, les maisons, les activités en famille. Reviens à ce thème si la conversation s'éloigne.",
+    prompt: "Le thème choisi est LA FAMILLE. Oriente naturellement la conversation vers la famille : les membres de la famille, ce qu'on fait ensemble, les maisons, les activités en famille.",
   },
   {
     id: "toys",
     emoji: "🎮",
     fr: "Jouets",
-    ru: "Игрушки",
     color: "#38bdf8",
-    prompt: "Le thème choisi est LES JOUETS. Oriente naturellement la conversation vers les jouets : les jeux préférés, les jouets à la maison, jouer avec des amis, les jeux de société. Reviens à ce thème si la conversation s'éloigne.",
+    prompt: "Le thème choisi est LES JOUETS. Oriente naturellement la conversation vers les jouets : les jeux préférés, les jouets à la maison, jouer avec des amis, les jeux de société.",
   },
   {
-    id: "dreams",
-    emoji: "🌙",
-    fr: "Rêves",
-    ru: "Мечты",
-    color: "#818cf8",
-    prompt: "Le thème choisi est LES RÊVES. Oriente naturellement la conversation vers les rêves et l'imagination : ce qu'on aimerait faire plus tard, les voyages imaginaires, les aventures, les pays fantastiques. Reviens à ce thème si la conversation s'éloigne.",
+    id: "kpop",
+    emoji: "🎤",
+    fr: "K-pop",
+    color: "#ff6eb4",
+    prompt: "Le thème choisi est K-POP DEMON HUNTERS. Oriente naturellement la conversation vers cet univers : les personnages chasseurs de démons, leurs pouvoirs spéciaux, leurs tenues et couleurs, leur groupe et leurs chansons, les démons qu'ils combattent, les aventures qu'ils vivent. Utilise des mots simples adaptés à une enfant de 8 ans.",
   },
 ];
 
@@ -177,7 +169,7 @@ function ThemeSelector({ onStart }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "clamp(16px,4vw,24px)", width: "100%", maxWidth: 560, zIndex: 1 }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: "clamp(2rem,8vw,3rem)", marginBottom: 6 }}>🧚</div>
+        <div style={{ fontSize: "clamp(2rem,8vw,3rem)", marginBottom: 6 }}>✨</div>
         <h2 style={{ fontFamily: "'Baloo 2', cursive", color: "#f9d71c", fontSize: "clamp(1.1rem,4vw,1.5rem)", margin: "0 0 4px", textShadow: "0 0 16px rgba(249,215,28,0.4)" }}>
           Choisis un thème !
         </h2>
@@ -203,7 +195,6 @@ function ThemeSelector({ onStart }) {
             }}>
               <span style={{ fontSize: "clamp(1.6rem,5vw,2.2rem)", lineHeight: 1 }}>{theme.emoji}</span>
               <span style={{ color: isSelected ? theme.color : "#e2d9f3", fontSize: "clamp(0.65rem,2vw,0.8rem)", fontWeight: 700, fontFamily: "'Baloo 2', cursive", lineHeight: 1.2, textAlign: "center" }}>{theme.fr}</span>
-              <span style={{ color: "rgba(167,139,250,0.6)", fontSize: "clamp(0.55rem,1.8vw,0.7rem)", lineHeight: 1, textAlign: "center" }}>{theme.ru}</span>
             </button>
           );
         })}
